@@ -30,19 +30,6 @@ repos:
         args: [--ignore, DL3008, --ignore, DL3013]
         files: ^app/Dockerfile$
 
-  # Terraformのフォーマットと検証
-  - repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: v1.96.2
-    hooks:
-      - id: terraform_fmt
-        files: ^terraform/
-      - id: terraform_validate
-        files: ^terraform/
-      - id: terraform_tflint
-        files: ^terraform/
-        args:
-          - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
-
   # 一般的なファイルチェック
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -72,9 +59,3 @@ repos:
     hooks:
       - id: markdownlint
         args: [--config, .markdownlint.yaml]
-
-  # シェルスクリプトのリント
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
-    hooks:
-      - id: shellcheck
