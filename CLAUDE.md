@@ -43,6 +43,39 @@ uv run ruff check app/ --fix         # 自動修正付きlint
 uv run mypy app/src/                 # 型チェック
 ```
 
+### テスト
+
+```bash
+# テスト実行
+cd app
+uv run pytest tests/ -v
+
+# カバレッジ付きテスト実行
+uv run pytest tests/ --cov=src/tccretro --cov-report=term
+
+# HTMLカバレッジレポート生成
+uv run pytest tests/ --cov=src/tccretro --cov-report=html
+# ブラウザでhtmlcov/index.htmlを開く
+```
+
+**テスト方針:**
+
+- **カバレッジ目標: 85%以上** - 主要ロジックは必ずテストでカバーする
+- **DRY原則を厳守** - 共通フィクスチャとヘルパーメソッドで重複を徹底的に排除
+- **わかりやすさ重視** - 各テストケースには日本語のdocstringを記述
+- **テスト構成:**
+  - `app/tests/conftest.py` - 共通フィクスチャ (mock_page, mock_locatorなど)
+  - `app/tests/test_login.py` - login.pyのテスト
+  - `app/tests/test_export.py` - export.pyのテスト
+  - `app/tests/test_cli.py` - cli.pyのテスト
+
+**テスト作成時の注意点:**
+
+- Playwrightオブジェクトは必ずモック化する
+- CLIテストでは`runner.isolated_filesystem()`を使用
+- 正常系・異常系・エッジケースをすべてカバー
+- 重複するモック設定はヘルパーメソッドに抽出
+
 ### ローカル実行
 
 ```bash

@@ -134,6 +134,40 @@ downloads/
 
 ## 開発
 
+### テスト
+
+このプロジェクトはpytestを使用した包括的なUnit Testを提供しています (カバレッジ: 92.54%):
+
+```bash
+cd app
+
+# テスト実行
+uv run pytest tests/ -v
+
+# カバレッジ付きテスト実行
+uv run pytest tests/ --cov=src/tccretro --cov-report=term
+
+# HTMLカバレッジレポート生成
+uv run pytest tests/ --cov=src/tccretro --cov-report=html
+# ブラウザでhtmlcov/index.htmlを開く
+```
+
+**テスト方針:**
+
+- カバレッジ目標: 85%以上
+- DRY原則に基づく共通フィクスチャとヘルパーメソッドの活用
+- 正常系・異常系・エッジケースを網羅的にカバー
+
+**テスト構成:**
+
+```text
+app/tests/
+├── conftest.py          # 共通フィクスチャ
+├── test_login.py        # login.pyのテスト
+├── test_export.py       # export.pyのテスト
+└── test_cli.py          # cli.pyのテスト
+```
+
 ### コード品質
 
 このプロジェクトはpre-commitフックを使用してコード品質を維持します:
