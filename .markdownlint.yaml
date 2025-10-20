@@ -1,0 +1,16 @@
+# Markdownlint configuration
+# See: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+default: true
+
+# MD013/line-length - Line length
+MD013: false
+
+# MD033/no-inline-html - Inline HTML
+MD033: false
+
+# MD041/first-line-heading - First line in file should be a top level heading
+MD041: false
+
+# MD034/no-bare-urls - Bare URL used
+MD034: false

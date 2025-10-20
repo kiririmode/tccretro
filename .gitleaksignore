@@ -1,0 +1,7 @@
+# Gitleaks ignore file
+# Add false positives here
+
+# Example files and templates
+*.example
+.env.example
+terraform.tfvars.example

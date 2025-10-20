@@ -1,0 +1,80 @@
+repos:
+  # Python - Ruff (高速なリンター・フォーマッター)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.1
+    hooks:
+      # リンターを実行
+      - id: ruff
+        args: [--fix]
+        files: ^app/
+      # フォーマッターを実行
+      - id: ruff-format
+        files: ^app/
+
+  # Python - MyPy (型チェック)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        files: ^app/src/
+        additional_dependencies:
+          - boto3-stubs
+          - types-python-dateutil
+        args: [--ignore-missing-imports]
+
+  # Dockerfileのリント
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        args: [--ignore, DL3008, --ignore, DL3013]
+        files: ^app/Dockerfile$
+
+  # Terraformのフォーマットと検証
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.2
+    hooks:
+      - id: terraform_fmt
+        files: ^terraform/
+      - id: terraform_validate
+        files: ^terraform/
+      - id: terraform_tflint
+        files: ^terraform/
+        args:
+          - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
+
+  # 一般的なファイルチェック
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: detect-private-key
+
+  # シークレット検出
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # Markdownのリント (Python版markdownlintを使用)
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.43.0
+    hooks:
+      - id: markdownlint
+        args: [--config, .markdownlint.yaml]
+
+  # シェルスクリプトのリント
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
