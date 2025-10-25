@@ -61,6 +61,16 @@ from tccretro.login import create_login_from_env
     type=click.DateTime(formats=["%Y-%m-%d"]),
     help="エクスポート終了日 (YYYY-MM-DD形式)",
 )
+@click.option(
+    "--analyze",
+    is_flag=True,
+    help="エクスポート後にデータ分析とレポート生成を実行",
+)
+@click.option(
+    "--no-ai",
+    is_flag=True,
+    help="AI分析を無効化（グラフと集計のみ生成）",
+)
 def main(
     login_only: bool,
     export_only: bool,
@@ -71,6 +81,8 @@ def main(
     export_date: date | None,
     export_start_date: date | None,
     export_end_date: date | None,
+    analyze: bool,
+    no_ai: bool,
 ):
     """TaskChute Cloud エクスポート自動化ツール (ローカル実行)."""
     # Load environment variables
@@ -144,9 +156,14 @@ def main(
             page = context.new_page()
 
             try:
+                # Determine total steps
+                total_steps = 2
+                if analyze and not login_only:
+                    total_steps = 3
+
                 # Step 1: Login
                 if not export_only:
-                    click.echo("\n[1/2] TaskChute Cloudにログイン中...")
+                    click.echo(f"\n[1/{total_steps}] TaskChute Cloudにログイン中...")
                     login_success = login_handler.login(page)
 
                     if not login_success:
@@ -162,7 +179,7 @@ def main(
 
                 # Step 2: Export
                 if not login_only:
-                    click.echo("\n[2/2] データをエクスポート中...")
+                    click.echo(f"\n[2/{total_steps}] データをエクスポート中...")
                     exporter = TaskChuteExporter(download_dir=str(output_path), debug=debug)
                     exported_file = exporter.export_data(
                         page, start_date=start_date, end_date=end_date
@@ -173,6 +190,26 @@ def main(
                         sys.exit(1)
 
                     click.echo(f"✓ エクスポート成功: {exported_file}")
+
+                    # Step 3: Analyze (if requested)
+                    if analyze:
+                        click.echo("\n[3/3] データを分析中...")
+                        try:
+                            from tccretro.report_generator import ReportGenerator
+
+                            generator = ReportGenerator(
+                                csv_path=Path(exported_file),
+                                output_dir=output_path,
+                                enable_ai=not no_ai,
+                            )
+                            report_path = generator.generate_report()
+                            click.echo(f"✓ 分析レポート生成完了: {report_path}")
+                        except Exception as e:
+                            click.echo(f"✗ 分析失敗: {e}", err=True)
+                            if debug:
+                                import traceback
+
+                                traceback.print_exc()
 
                 click.echo("\n=== すべての処理が完了しました ===")
 

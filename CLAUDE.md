@@ -4,16 +4,24 @@
 
 ## プロジェクト概要
 
-TaskChute Cloud Export Automation: Playwrightブラウザ自動化を使用してTaskChute Cloudのデータをローカルに自動エクスポートするツール。
+TaskChute Cloud Retrospective Analysis Tool: Playwrightブラウザ自動化を使用してTaskChute Cloudのデータをローカルに自動エクスポートし、pandasによる分析・可視化、さらにBedrock (Claude) による洞察を得ることで、より良い暮らしのための時間の使い方に関するフィードバックを提供するツール。
+
+**主要機能:**
+
+1. **データエクスポート**: TaskChute Cloudから時間記録データを自動取得
+2. **データ分析**: pandasを使った統計分析・可視化
+3. **AIフィードバック**: Amazon Bedrock (Claude) によるデータ分析と改善提案
 
 **アーキテクチャフロー:**
-CLI実行 → Playwright (永続的Chromeプロファイル) → TaskChute Cloud (ログイン確認 + エクスポート) → ローカルファイル
+CLI実行 → Playwright (永続的Chromeプロファイル) → TaskChute Cloud (ログイン確認 + エクスポート) → ローカルファイル → pandas分析 → Bedrock (Claude) → フィードバック生成
 
 ## 技術スタック
 
 - **Python 3.10+** - **uv** (パッケージマネージャ)で管理
 - **Playwright** - ブラウザ自動化 (Chromium)
 - **永続的Chromeプロファイル** - 認証情報の保存
+- **pandas** - データ分析・可視化
+- **Amazon Bedrock (Claude)** - AI分析とフィードバック生成
 
 ## 主要コマンド
 
@@ -88,11 +96,17 @@ uv run python -m tccretro.cli --login-only --debug
 # 基本実行 (昨日のデータをエクスポート)
 uv run python -m tccretro.cli
 
+# エクスポート + データ分析 + AIフィードバック生成
+uv run python -m tccretro.cli --analyze
+
+# エクスポート + データ分析のみ (AI分析なし)
+uv run python -m tccretro.cli --analyze --no-ai
+
 # 特定の日付をエクスポート
 uv run python -m tccretro.cli --export-date 2025-01-15
 
-# 日付範囲を指定
-uv run python -m tccretro.cli --export-start-date 2025-01-01 --export-end-date 2025-01-31
+# 日付範囲を指定して分析
+uv run python -m tccretro.cli --export-start-date 2025-01-01 --export-end-date 2025-01-31 --analyze
 
 # デバッグモード (ブラウザを表示)
 uv run python -m tccretro.cli --debug
@@ -111,13 +125,26 @@ uv run python -m tccretro.cli --output-dir ./my_exports
 ```text
 app/                         # Pythonアプリケーション
 ├── src/tccretro/           # メインパッケージ
+│   ├── analyzer/           # データ分析モジュール
+│   │   ├── base.py         # アナライザー基底クラス
+│   │   ├── project_analyzer.py  # プロジェクト別分析
+│   │   └── mode_analyzer.py     # モード別分析
+│   ├── utils/              # ユーティリティ
+│   │   └── font_config.py  # 日本語フォント設定
 │   ├── login.py            # Playwrightログイン状態確認
 │   ├── export.py           # エクスポート自動化
+│   ├── ai_feedback.py      # AI分析とフィードバック生成
+│   ├── report_generator.py # Markdownレポート生成
 │   └── cli.py              # CLIインターフェース
 └── pyproject.toml          # uv + ruff + mypy設定
 
 chrome-profile/              # 永続的Chromeプロファイル (自動生成、Git管理外)
-downloads/                   # エクスポートファイル保存先 (自動生成)
+downloads/                   # エクスポートファイル・レポート保存先 (自動生成)
+  ├── tasks_*.csv           # エクスポートされたCSVファイル
+  ├── charts/               # グラフ画像
+  │   ├── project_analysis.png
+  │   └── mode_analysis.png
+  └── report_*.md           # 生成されたレポート
 ```
 
 ### 実行フロー
@@ -135,6 +162,13 @@ CLIツール (`app/src/tccretro/cli.py`) は以下を統括:
    - 日付範囲入力フィールドに日付を入力
    - ダウンロードボタンをクリック
    - ダウンロードファイルを指定ディレクトリに保存
+
+3. **データ分析** (`--analyze` オプション使用時):
+   - CSVデータをpandasで読み込み
+   - プロジェクト別・モード別の時間集計
+   - グラフ生成 (PNG形式、日本語フォント対応)
+   - Bedrock (Claude) によるAI分析とフィードバック生成
+   - Markdownレポートの生成
 
 ### 重要な実装詳細
 
@@ -164,6 +198,45 @@ CLIツール (`app/src/tccretro/cli.py`) は以下を統括:
 - `.pre-commit-config.yaml`: ruff, mypy, gitleaks, markdownlintを実行
 - `app/pyproject.toml`: Python依存関係 + ruff/mypy設定 (行長: 100)
 - `app/.env.example`: 環境変数テンプレート (永続的プロファイルを使う場合は不要)
+
+## AI分析の設定
+
+AI分析機能を使用する場合は、AWS認証情報が必要です:
+
+```bash
+# 環境変数で設定
+export AWS_REGION=us-east-1
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+
+# または ~/.aws/credentials ファイルで設定
+```
+
+AI分析を無効化する場合は `--no-ai` フラグを使用してください。
+
+## 新しい分析観点の追加方法
+
+拡張性のあるプラグインベース設計により、新しい分析観点を簡単に追加できます:
+
+1. `app/src/tccretro/analyzer/` に新しいアナライザーを作成
+2. `IAnalyzer` 基底クラスを継承
+3. `analyze()` メソッドを実装
+4. `report_generator.py` の `_register_analyzers()` に登録
+
+例:
+
+```python
+from tccretro.analyzer.base import IAnalyzer, AnalysisResult
+
+class TagAnalyzer(IAnalyzer):
+    @property
+    def name(self) -> str:
+        return "tag"
+
+    def analyze(self) -> AnalysisResult:
+        # タグ別分析ロジック
+        pass
+```
 
 ## よくある問題
 
