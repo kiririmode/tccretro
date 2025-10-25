@@ -77,6 +77,9 @@ class ProjectAnalyzer(IAnalyzer):
         # 日本語フォント設定
         setup_japanese_font()
 
+        # 絵文字を削除したラベルを作成
+        clean_labels = self._remove_emoji(project_summary.index)
+
         # 2つのサブプロットを作成
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
         fig.suptitle("プロジェクト別時間分析", fontsize=16, fontweight="bold")
@@ -85,7 +88,7 @@ class ProjectAnalyzer(IAnalyzer):
         colors = sns.color_palette("husl", len(project_summary))
         ax1.pie(
             project_summary,
-            labels=project_summary.index,
+            labels=clean_labels,
             autopct="%1.1f%%",
             colors=colors,
             startangle=90,
@@ -93,7 +96,7 @@ class ProjectAnalyzer(IAnalyzer):
         ax1.set_title("プロジェクト別時間配分")
 
         # 2. 棒グラフ
-        ax2.barh(project_hours.index, project_hours.values, color=colors)
+        ax2.barh(clean_labels, project_hours.values, color=colors)
         ax2.set_xlabel("時間 (h)")
         ax2.set_title("プロジェクト別実績時間")
         ax2.invert_yaxis()  # 上位から表示
@@ -107,6 +110,38 @@ class ProjectAnalyzer(IAnalyzer):
 
         logger.info("プロジェクト別グラフを生成しました: %s", chart_path)
         return chart_path
+
+    def _remove_emoji(self, labels: pd.Index) -> list[str]:
+        """ラベルから絵文字を削除する.
+
+        Args:
+            labels: 元のラベル
+
+        Returns:
+            list[str]: 絵文字を削除したラベルのリスト
+        """
+        import re
+
+        # 絵文字を削除する正規表現パターン
+        emoji_pattern = re.compile(
+            "["
+            "\U0001f1e0-\U0001f1ff"  # flags (iOS)
+            "\U0001f300-\U0001f5ff"  # symbols & pictographs
+            "\U0001f600-\U0001f64f"  # emoticons
+            "\U0001f680-\U0001f6ff"  # transport & map symbols
+            "\U0001f700-\U0001f77f"  # alchemical symbols
+            "\U0001f780-\U0001f7ff"  # Geometric Shapes Extended
+            "\U0001f800-\U0001f8ff"  # Supplemental Arrows-C
+            "\U0001f900-\U0001f9ff"  # Supplemental Symbols and Pictographs
+            "\U0001fa00-\U0001fa6f"  # Chess Symbols
+            "\U0001fa70-\U0001faff"  # Symbols and Pictographs Extended-A
+            "\U00002600-\U000027bf"  # Miscellaneous Symbols and Dingbats
+            "\U0000fe00-\U0000fe0f"  # Variation Selectors
+            "]+",
+            flags=re.UNICODE,
+        )
+
+        return [emoji_pattern.sub("", str(label)).strip() for label in labels]
 
     def _generate_report_section(self, project_hours: pd.Series) -> str:
         """レポートのMarkdownセクションを生成する.

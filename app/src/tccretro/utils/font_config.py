@@ -19,32 +19,23 @@ def setup_japanese_font() -> None:
     - Windows: Yu Gothic / MS Gothic
     - Linux: Noto Sans CJK JP / IPAexGothic
 
-    フォントが見つからない場合は警告を出力します。
+    注意: グラフ内の絵文字は各アナライザーで削除されます。
     """
     system = platform.system()
-    font_candidates = []
+    font_list = []
 
     if system == "Darwin":  # macOS
-        font_candidates = ["Hiragino Sans", "Hiragino Maru Gothic Pro"]
+        font_list = ["Hiragino Sans", "Hiragino Maru Gothic Pro"]
     elif system == "Windows":
-        font_candidates = ["Yu Gothic", "MS Gothic", "MS UI Gothic"]
+        font_list = ["Yu Gothic", "MS Gothic", "MS UI Gothic"]
     else:  # Linux
-        font_candidates = ["Noto Sans CJK JP", "IPAexGothic", "IPAGothic", "DejaVu Sans"]
+        font_list = ["Noto Sans CJK JP", "IPAexGothic", "IPAGothic", "DejaVu Sans"]
 
-    # Try to set font
-    for font in font_candidates:
-        try:
-            plt.rcParams["font.family"] = font
-            plt.rcParams["font.sans-serif"] = [font]
-            plt.rcParams["axes.unicode_minus"] = False  # マイナス記号の文字化け対策
-            logger.info("日本語フォント設定が完了しました: %s", font)
-            return
-        except Exception:
-            continue
-
-    # フォールバック: デフォルトフォントを使用
-    logger.warning(
-        "日本語フォントが見つかりませんでした。デフォルトフォントを使用します。"
-        "日本語が文字化けする可能性があります。"
-    )
-    plt.rcParams["axes.unicode_minus"] = False
+    try:
+        plt.rcParams["font.family"] = "sans-serif"
+        plt.rcParams["font.sans-serif"] = font_list
+        plt.rcParams["axes.unicode_minus"] = False  # マイナス記号の文字化け対策
+        logger.info("日本語フォント設定が完了しました: %s", ", ".join(font_list))
+    except Exception as e:
+        logger.warning("フォント設定に失敗しました: %s。デフォルトフォントを使用します。", e)
+        plt.rcParams["axes.unicode_minus"] = False
