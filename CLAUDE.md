@@ -21,6 +21,7 @@ CLI実行 → Playwright (永続的Chromeプロファイル) → TaskChute Cloud
 - **Playwright** - ブラウザ自動化 (Chromium)
 - **永続的Chromeプロファイル** - 認証情報の保存
 - **pandas** - データ分析・可視化
+- **jpholiday** - 日本の祝日判定
 - **Amazon Bedrock (Claude)** - AI分析とフィードバック生成
 
 ## 主要コマンド
@@ -76,6 +77,10 @@ uv run pytest tests/ --cov=src/tccretro --cov-report=html
   - `app/tests/test_login.py` - login.pyのテスト
   - `app/tests/test_export.py` - export.pyのテスト
   - `app/tests/test_cli.py` - cli.pyのテスト
+  - `app/tests/test_ai_feedback.py` - ai_feedback.pyのテスト（CSV抽出、休日判定など）
+  - `app/tests/test_report_generator.py` - report_generator.pyのテスト
+  - `app/tests/test_analyzer.py` - アナライザーのテスト
+  - `app/tests/test_routine_analyzer.py` - ルーチンアナライザーのテスト
 
 **テスト作成時の注意点:**
 
@@ -213,6 +218,29 @@ export AWS_SECRET_ACCESS_KEY=your_secret_key
 ```
 
 AI分析を無効化する場合は `--no-ai` フラグを使用してください。
+
+### AI分析の高度な機能
+
+AI分析は、以下の情報を自動的にプロンプトに含めて、より詳細なフィードバックを生成します：
+
+1. **日付・休日情報の自動判定**
+   - CSVファイル名または内容から分析対象の日付範囲を自動抽出
+   - `jpholiday`ライブラリを使用して日本の祝日を判定
+   - 土日・平日の判定も含めてプロンプトに提供
+   - 例: "2025-11-03 (月曜日): 祝日 - 文化の日"
+
+2. **CSVデータサンプルの提供**
+   - 分析に必要なカラムのみを抽出してプロンプトに含める
+   - 抽出されるカラム:
+     - タイムライン日付、タスク名、プロジェクト名、モード名
+     - ルーチン名、見積時間、実績時間、開始日時、終了日時
+   - デフォルトで最大1000行まで提供（通常の1日分なら全行が含まれる）
+   - 1000行を超える大量データの場合:
+     - 警告ログが表示され、最初の1000行のみが使用される
+     - より詳細な分析には日付範囲を絞って実行することを推奨
+   - 生データを参照することで、AIがより具体的な洞察を提供可能
+
+これらの機能により、AIは休日と平日の時間の使い方の違いや、具体的なタスクに基づいた改善提案を提供できます。
 
 ## 新しい分析観点の追加方法
 
