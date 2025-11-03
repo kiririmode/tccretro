@@ -148,16 +148,15 @@ class TaskChuteExporter:
 
             # ページが安定した状態になるまで待機
             print("ページの読み込みを待機中...")
-            try:
-                page.wait_for_load_state("networkidle", timeout=30000)
-            except Exception as e:
-                print(f"networkidle タイムアウト (そのまま続行): {e}")
-                # 代わりに domcontentloaded を試行
-                page.wait_for_load_state("domcontentloaded", timeout=10000)
+            page.wait_for_load_state("load", timeout=30000)
 
-            # Reactアプリのレンダリングを待機 (Next.jsアプリ)
-            print("ページの完全なレンダリングを待機中...")
-            page.wait_for_timeout(3000)  # React hydrationを待機
+            # 日付入力フィールドが表示されるまで待機 (Reactアプリのレンダリング完了を確認)
+            print("日付入力フィールドの表示を待機中...")
+            try:
+                page.wait_for_selector('input[placeholder*="YYYY"]', timeout=10000, state="visible")
+            except Exception:
+                # フォールバック: 個別フィールドを待機
+                page.wait_for_selector('[aria-label="年"]', timeout=10000, state="visible")
 
             # ページ読み込み後のスクリーンショットを撮影 (デバッグモードのみ)
             if self.debug:
