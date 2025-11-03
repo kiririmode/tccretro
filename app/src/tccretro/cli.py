@@ -43,8 +43,8 @@ from tccretro.login import create_login_from_env
 @click.option(
     "--env-file",
     type=click.Path(exists=True),
-    default=".env",
-    help=".envファイルのパス",
+    default=None,
+    help=".envファイルのパス（オプション）",
 )
 @click.option(
     "--export-date",
@@ -71,22 +71,32 @@ from tccretro.login import create_login_from_env
     is_flag=True,
     help="AI分析を無効化（グラフと集計のみ生成）",
 )
+@click.option(
+    "--model-id",
+    type=str,
+    default="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    help="BedrockのモデルIDまたは推論プロファイルID",
+)
 def main(
     login_only: bool,
     export_only: bool,
     debug: bool,
     slow_mo: int,
     output_dir: str,
-    env_file: str,
+    env_file: str | None,
     export_date: date | None,
     export_start_date: date | None,
     export_end_date: date | None,
     analyze: bool,
     no_ai: bool,
+    model_id: str,
 ):
     """TaskChute Cloud エクスポート自動化ツール (ローカル実行)."""
     # Load environment variables
-    load_dotenv(env_file)
+    if env_file:
+        load_dotenv(env_file)
+    else:
+        load_dotenv()  # .envファイルがあれば読み込む（なくてもエラーにならない）
 
     # Create output directory
     output_path = Path(output_dir)
@@ -178,6 +188,7 @@ def main(
                         return
 
                 # Step 2: Export
+                exported_file = None
                 if not login_only:
                     click.echo(f"\n[2/{total_steps}] データをエクスポート中...")
                     exporter = TaskChuteExporter(download_dir=str(output_path), debug=debug)
@@ -191,31 +202,36 @@ def main(
 
                     click.echo(f"✓ エクスポート成功: {exported_file}")
 
-                    # Step 3: Analyze (if requested)
-                    if analyze:
-                        click.echo("\n[3/3] データを分析中...")
-                        try:
-                            from tccretro.report_generator import ReportGenerator
-
-                            generator = ReportGenerator(
-                                csv_path=Path(exported_file),
-                                output_dir=output_path,
-                                enable_ai=not no_ai,
-                            )
-                            report_path = generator.generate_report()
-                            click.echo(f"✓ 分析レポート生成完了: {report_path}")
-                        except Exception as e:
-                            click.echo(f"✗ 分析失敗: {e}", err=True)
-                            if debug:
-                                import traceback
-
-                                traceback.print_exc()
-
-                click.echo("\n=== すべての処理が完了しました ===")
-
             finally:
                 page.close()
                 context.close()
+
+        # Step 3: Analyze (if requested)
+        # Note: Analysis is performed after browser is closed to prevent
+        # BrowserContext.close errors when user interrupts with Ctrl+C
+        if analyze and exported_file:
+            click.echo("\n[3/3] データを分析中...")
+            try:
+                from tccretro.report_generator import ReportGenerator
+
+                generator = ReportGenerator(
+                    csv_path=Path(exported_file),
+                    output_dir=output_path,
+                    enable_ai=not no_ai,
+                    model_id=model_id,
+                )
+                report_path = generator.generate_report()
+                click.echo(f"✓ 分析レポート生成完了: {report_path}")
+            except Exception as e:
+                click.echo(f"✗ 分析失敗: {e}", err=True)
+                if debug:
+                    import traceback
+
+                    traceback.print_exc()
+                sys.exit(1)
+
+        if not login_only:
+            click.echo("\n=== すべての処理が完了しました ===")
 
     except KeyboardInterrupt:
         click.echo("\n中断されました", err=True)

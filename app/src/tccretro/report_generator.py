@@ -17,17 +17,25 @@ logger = logging.getLogger(__name__)
 class ReportGenerator:
     """分析結果を統合してMarkdownレポートを生成するクラス."""
 
-    def __init__(self, csv_path: Path, output_dir: Path, enable_ai: bool = True):
+    def __init__(
+        self,
+        csv_path: Path,
+        output_dir: Path,
+        enable_ai: bool = True,
+        model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    ):
         """ReportGeneratorを初期化する.
 
         Args:
             csv_path: 分析対象のCSVファイルパス
             output_dir: レポート出力先ディレクトリ
             enable_ai: AI分析を有効にするかどうか
+            model_id: 使用するBedrockのモデルIDまたは推論プロファイルID
         """
         self.csv_path = csv_path
         self.output_dir = output_dir
         self.enable_ai = enable_ai
+        self.model_id = model_id
         self.data = pd.read_csv(csv_path)
         self.analyzers: list[IAnalyzer] = []
 
@@ -54,6 +62,12 @@ class ReportGenerator:
         # 全アナライザーを実行
         analysis_results: list[AnalysisResult] = []
         for analyzer in self.analyzers:
+            analyzer_label = {
+                "project": "プロジェクト別分析",
+                "mode": "モード別分析",
+            }.get(analyzer.name, f"'{analyzer.name}' 分析")
+
+            print(f"  → {analyzer_label}を実行中...")
             logger.info("アナライザー '%s' を実行中...", analyzer.name)
             result = analyzer.analyze()
             analysis_results.append(result)
@@ -62,7 +76,8 @@ class ReportGenerator:
         ai_feedback = ""
         if self.enable_ai:
             try:
-                ai_generator = AIFeedbackGenerator()
+                print("  → AIフィードバックを生成中... (15-40秒程度かかります)")
+                ai_generator = AIFeedbackGenerator(model_id=self.model_id)
                 project_result = next(r for r in analysis_results if "プロジェクト" in r.title)
                 mode_result = next(r for r in analysis_results if "モード" in r.title)
                 ai_feedback = ai_generator.generate_feedback(
@@ -73,6 +88,7 @@ class ReportGenerator:
                 ai_feedback = "> AI分析は利用できません。AWS認証情報を確認してください。"
 
         # Markdownレポートを構築
+        print("  → レポートを生成中...")
         report_content = self._build_report(analysis_results, ai_feedback)
 
         # レポートを保存

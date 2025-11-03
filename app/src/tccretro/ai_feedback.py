@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 class AIFeedbackGenerator:
     """Amazon Bedrock (Claude) を使用してデータ分析とフィードバックを生成するクラス."""
 
-    def __init__(self, model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"):
+    def __init__(self, model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"):
         """AIFeedbackGeneratorを初期化する.
 
         Args:
-            model_id: 使用するBedrockのモデルID
+            model_id: 使用するBedrockのモデルIDまたは推論プロファイルID
         """
         self.model_id = model_id
         self.bedrock_client = self._create_bedrock_client()
@@ -81,7 +81,7 @@ class AIFeedbackGenerator:
             )
 
             # レスポンスからテキストを抽出
-            feedback = response["output"]["message"]["content"][0]["text"]
+            feedback: str = response["output"]["message"]["content"][0]["text"]
             logger.info("AI分析が完了しました")
             return feedback
 
