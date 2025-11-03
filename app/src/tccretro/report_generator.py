@@ -53,6 +53,43 @@ class ReportGenerator:
         ]
         logger.info("登録されたアナライザー: %d 個", len(self.analyzers))
 
+    def _extract_date_range_from_csv(self) -> tuple[str | None, str | None]:
+        """CSVファイル名から日付範囲を抽出する.
+
+        Returns:
+            tuple[str | None, str | None]: (開始日, 終了日)のタプル（YYYY-MM-DD形式）
+        """
+        try:
+            import re
+
+            # ファイル名から日付範囲を抽出（例: tasks_20251102-20251102.csv）
+            filename = self.csv_path.name
+            match = re.search(r"tasks_(\d{8})-(\d{8})\.csv", filename)
+
+            if match:
+                start_date_str = match.group(1)
+                end_date_str = match.group(2)
+
+                # YYYY-MM-DD形式に変換
+                start_date = f"{start_date_str[:4]}-{start_date_str[4:6]}-{start_date_str[6:]}"
+                end_date = f"{end_date_str[:4]}-{end_date_str[4:6]}-{end_date_str[6:]}"
+
+                logger.info("CSVファイルから日付範囲を抽出しました: %s 〜 %s", start_date, end_date)
+                return start_date, end_date
+
+            # ファイル名から抽出できなかった場合、CSVの日付カラムから取得を試みる
+            if "タイムライン日付" in self.data.columns:
+                dates = pd.to_datetime(self.data["タイムライン日付"])
+                start_date = dates.min().strftime("%Y-%m-%d")
+                end_date = dates.max().strftime("%Y-%m-%d")
+                logger.info("CSVデータから日付範囲を抽出しました: %s 〜 %s", start_date, end_date)
+                return start_date, end_date
+
+        except Exception as e:
+            logger.warning("日付範囲の抽出に失敗しました: %s", e)
+
+        return None, None
+
     def generate_report(self) -> Path:
         """レポートを生成する.
 
@@ -75,6 +112,9 @@ class ReportGenerator:
             result = analyzer.analyze()
             analysis_results.append(result)
 
+        # 日付範囲を抽出
+        start_date, end_date = self._extract_date_range_from_csv()
+
         # AI分析を実行
         ai_feedback = ""
         if self.enable_ai:
@@ -85,7 +125,12 @@ class ReportGenerator:
                 mode_result = next(r for r in analysis_results if "モード" in r.title)
                 routine_result = next(r for r in analysis_results if "ルーチン" in r.title)
                 ai_feedback = ai_generator.generate_feedback(
-                    project_result.summary, mode_result.summary, routine_result.summary
+                    project_result.summary,
+                    mode_result.summary,
+                    routine_result.summary,
+                    data=self.data,
+                    start_date=start_date,
+                    end_date=end_date,
                 )
             except Exception as e:
                 logger.warning("AI分析をスキップします: %s", e)

@@ -119,11 +119,126 @@ class AIFeedbackGenerator:
 
         return "\n".join(lines)
 
+    def _extract_relevant_csv_data(self, data: Any, max_rows: int = 1000) -> str:
+        """CSVデータから必要なカラムのみを抽出してサンプルを作成する.
+
+        Args:
+            data: pandas DataFrame
+            max_rows: 抽出する最大行数（デフォルト: 1000）
+
+        Returns:
+            str: CSV形式のサンプルデータ
+        """
+        try:
+            # 分析に必要なカラムのみを抽出
+            relevant_columns = [
+                "タイムライン日付",
+                "タスク名",
+                "プロジェクト名",
+                "モード名",
+                "ルーチン名",
+                "見積時間",
+                "実績時間",
+                "開始日時",
+                "終了日時",
+            ]
+
+            # 存在するカラムのみを抽出
+            available_columns = [col for col in relevant_columns if col in data.columns]
+
+            if not available_columns:
+                return ""
+
+            # データ行数を確認し、上限を超える場合は警告
+            total_rows = len(data)
+            if total_rows > max_rows:
+                logger.warning(
+                    "CSVデータが%d行ありますが、プロンプトサイズの制限により最初の%d行のみを使用します。"
+                    "より詳細な分析には、日付範囲を絞って実行することをお勧めします。",
+                    total_rows,
+                    max_rows,
+                )
+
+            # サンプルデータを抽出（最初のmax_rows行）
+            sample_data = data[available_columns].head(max_rows)
+
+            # CSV形式に変換
+            csv_string: str | None = sample_data.to_csv(index=False)
+            return csv_string if csv_string is not None else ""
+
+        except Exception as e:
+            logger.warning("CSVサンプルデータの抽出に失敗しました: %s", e)
+            return ""
+
+    def _get_holiday_info(self, start_date: str, end_date: str) -> str:
+        """日付が休日・祝日かどうかを判定する.
+
+        Args:
+            start_date: 開始日（YYYY-MM-DD形式）
+            end_date: 終了日（YYYY-MM-DD形式）
+
+        Returns:
+            str: 休日情報の文字列
+        """
+        try:
+            import datetime
+
+            import jpholiday
+
+            # 日付をパース
+            start = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+            end = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
+
+            # 期間内の各日付を確認
+            holiday_info_list = []
+            current = start
+            while current <= end:
+                day_info = []
+
+                # 曜日を取得
+                weekday = current.strftime("%A")
+                weekday_ja = {
+                    "Monday": "月",
+                    "Tuesday": "火",
+                    "Wednesday": "水",
+                    "Thursday": "木",
+                    "Friday": "金",
+                    "Saturday": "土",
+                    "Sunday": "日",
+                }.get(weekday, "")
+
+                # 休日・祝日判定
+                if jpholiday.is_holiday(current):
+                    holiday_name = jpholiday.is_holiday_name(current)
+                    day_info.append(f"{current} ({weekday_ja}曜日): 祝日 - {holiday_name}")
+                elif current.weekday() == 5:  # 土曜日
+                    day_info.append(f"{current} ({weekday_ja}曜日): 土曜日")
+                elif current.weekday() == 6:  # 日曜日
+                    day_info.append(f"{current} ({weekday_ja}曜日): 日曜日")
+                else:
+                    day_info.append(f"{current} ({weekday_ja}曜日): 平日")
+
+                if day_info:
+                    holiday_info_list.extend(day_info)
+
+                current += datetime.timedelta(days=1)
+
+            if holiday_info_list:
+                return "\n" + "\n".join(holiday_info_list)
+            return ""
+
+        except Exception as e:
+            logger.warning("休日情報の取得に失敗しました: %s", e)
+            return ""
+
     def generate_feedback(
         self,
         project_summary: dict[str, Any],
         mode_summary: dict[str, Any],
         routine_summary: dict[str, Any],
+        data: Any | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> str:
         """分析データをもとにAIフィードバックを生成する.
 
@@ -131,6 +246,9 @@ class AIFeedbackGenerator:
             project_summary: プロジェクト別分析のサマリー
             mode_summary: モード別分析のサマリー
             routine_summary: ルーチン別分析のサマリー
+            data: 元のCSVデータ（pandas DataFrame）
+            start_date: 分析開始日（YYYY-MM-DD形式）
+            end_date: 分析終了日（YYYY-MM-DD形式）
 
         Returns:
             str: 生成されたフィードバック（Markdown形式）
@@ -138,7 +256,14 @@ class AIFeedbackGenerator:
         logger.info("AI分析を開始します")
 
         # プロンプトを構築
-        prompt = self._build_prompt(project_summary, mode_summary, routine_summary)
+        prompt = self._build_prompt(
+            project_summary,
+            mode_summary,
+            routine_summary,
+            data,
+            start_date,
+            end_date,
+        )
 
         try:
             # Bedrock APIを呼び出し
@@ -170,6 +295,9 @@ class AIFeedbackGenerator:
         project_summary: dict[str, Any],
         mode_summary: dict[str, Any],
         routine_summary: dict[str, Any],
+        data: Any | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> str:
         """AI分析用のプロンプトを構築する.
 
@@ -177,6 +305,9 @@ class AIFeedbackGenerator:
             project_summary: プロジェクト別分析のサマリー
             mode_summary: モード別分析のサマリー
             routine_summary: ルーチン別分析のサマリー
+            data: 元のCSVデータ（pandas DataFrame）
+            start_date: 分析開始日（YYYY-MM-DD形式）
+            end_date: 分析終了日（YYYY-MM-DD形式）
 
         Returns:
             str: 構築されたプロンプト
@@ -188,9 +319,27 @@ class AIFeedbackGenerator:
         # プロジェクト定義セクションを取得
         project_definitions_section = self._format_project_definitions()
 
+        # 日付情報セクション
+        date_info_section = ""
+        if start_date and end_date:
+            holiday_info = self._get_holiday_info(start_date, end_date)
+            if start_date == end_date:
+                date_info_section = f"\n# 分析対象日\n{start_date}{holiday_info}\n"
+            else:
+                date_info_section = f"\n# 分析対象期間\n{start_date} 〜 {end_date}{holiday_info}\n"
+
+        # CSVサンプルデータセクション
+        csv_sample_section = ""
+        if data is not None:
+            csv_sample = self._extract_relevant_csv_data(data)
+            if csv_sample:
+                csv_sample_section = (
+                    f"\n# 生データサンプル（参考情報）\n\n```csv\n{csv_sample}\n```\n"
+                )
+
         prompt = f"""あなたは時間管理とライフスタイル改善のエキスパートです。
 以下のTaskChute Cloudのデータ分析結果をもとに、より良い暮らしのための時間の使い方についての詳細なフィードバックを提供してください。
-
+{date_info_section}
 {project_definitions_section}
 
 # プロジェクト別分析データ
@@ -207,7 +356,7 @@ class AIFeedbackGenerator:
 ```json
 {routine_data}
 ```
-
+{csv_sample_section}
 以下の観点から分析とフィードバックを提供してください：
 
 ## 1. 現状分析
