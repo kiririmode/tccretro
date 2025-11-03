@@ -48,13 +48,17 @@ class AIFeedbackGenerator:
             raise
 
     def generate_feedback(
-        self, project_summary: dict[str, Any], mode_summary: dict[str, Any]
+        self,
+        project_summary: dict[str, Any],
+        mode_summary: dict[str, Any],
+        routine_summary: dict[str, Any],
     ) -> str:
         """分析データをもとにAIフィードバックを生成する.
 
         Args:
             project_summary: プロジェクト別分析のサマリー
             mode_summary: モード別分析のサマリー
+            routine_summary: ルーチン別分析のサマリー
 
         Returns:
             str: 生成されたフィードバック（Markdown形式）
@@ -62,7 +66,7 @@ class AIFeedbackGenerator:
         logger.info("AI分析を開始します")
 
         # プロンプトを構築
-        prompt = self._build_prompt(project_summary, mode_summary)
+        prompt = self._build_prompt(project_summary, mode_summary, routine_summary)
 
         try:
             # Bedrock APIを呼び出し
@@ -87,20 +91,27 @@ class AIFeedbackGenerator:
 
         except Exception as e:
             logger.error("AI分析に失敗しました: %s", e)
-            return self._generate_fallback_feedback(project_summary, mode_summary)
+            return self._generate_fallback_feedback(project_summary, mode_summary, routine_summary)
 
-    def _build_prompt(self, project_summary: dict[str, Any], mode_summary: dict[str, Any]) -> str:
+    def _build_prompt(
+        self,
+        project_summary: dict[str, Any],
+        mode_summary: dict[str, Any],
+        routine_summary: dict[str, Any],
+    ) -> str:
         """AI分析用のプロンプトを構築する.
 
         Args:
             project_summary: プロジェクト別分析のサマリー
             mode_summary: モード別分析のサマリー
+            routine_summary: ルーチン別分析のサマリー
 
         Returns:
             str: 構築されたプロンプト
         """
         project_data = json.dumps(project_summary, ensure_ascii=False, indent=2)
         mode_data = json.dumps(mode_summary, ensure_ascii=False, indent=2)
+        routine_data = json.dumps(routine_summary, ensure_ascii=False, indent=2)
 
         prompt = f"""あなたは時間管理とライフスタイル改善のエキスパートです。
 以下のTaskChute Cloudのデータ分析結果をもとに、より良い暮らしのための時間の使い方についての詳細なフィードバックを提供してください。
@@ -115,17 +126,24 @@ class AIFeedbackGenerator:
 {mode_data}
 ```
 
+# ルーチン別分析データ
+```json
+{routine_data}
+```
+
 以下の観点から分析とフィードバックを提供してください:
 
 ## 1. 現状分析
 - 時間の使い方の傾向と特徴
 - バランスの良い点と課題点
 - 特に注目すべきプロジェクトやモード
+- ルーチンタスクと非ルーチンタスクの割合とその意味
 
 ## 2. 改善提案
 - より良い時間配分のための具体的な提案
 - ワークライフバランスの改善案
 - 優先順位付けのアドバイス
+- ルーチン化できるタスクやルーチンの見直しについて
 
 ## 3. アクションプラン
 - 今週から実践できる具体的な行動
@@ -138,13 +156,17 @@ class AIFeedbackGenerator:
         return prompt
 
     def _generate_fallback_feedback(
-        self, project_summary: dict[str, Any], mode_summary: dict[str, Any]
+        self,
+        project_summary: dict[str, Any],
+        mode_summary: dict[str, Any],
+        routine_summary: dict[str, Any],
     ) -> str:
         """AI分析が失敗した場合のフォールバックフィードバックを生成する.
 
         Args:
             project_summary: プロジェクト別分析のサマリー
             mode_summary: モード別分析のサマリー
+            routine_summary: ルーチン別分析のサマリー
 
         Returns:
             str: 基本的なフィードバック（Markdown形式）
@@ -183,11 +205,25 @@ class AIFeedbackGenerator:
         lines.extend(
             [
                 "",
+                "### ルーチン別の傾向",
+                "",
+                f"- 総時間: {routine_summary.get('total_hours', 0):.2f} 時間",
+                f"- ルーチンタスク: {routine_summary.get('routine_hours', 0):.2f} 時間 "
+                f"({routine_summary.get('routine_percentage', 0):.1f}%)",
+                f"- 非ルーチンタスク: {routine_summary.get('non_routine_hours', 0):.2f} 時間 "
+                f"({routine_summary.get('non_routine_percentage', 0):.1f}%)",
+            ]
+        )
+
+        lines.extend(
+            [
+                "",
                 "### 推奨事項",
                 "",
                 "- 時間配分を定期的に見直しましょう",
                 "- バランスの取れた生活を心がけましょう",
                 "- 優先順位の高いタスクに集中しましょう",
+                "- ルーチン化できるタスクを見つけて効率化しましょう",
                 "",
             ]
         )

@@ -13,11 +13,13 @@ def sample_csv_file():
     """テスト用のサンプルCSVファイルを作成する."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
         f.write(
-            "タイムライン日付,タスクID,タスク名,プロジェクトID,プロジェクト名,モードID,モード名,実績時間\n"
+            "タイムライン日付,タスクID,タスク名,プロジェクトID,プロジェクト名,モードID,モード名,ルーチンID,ルーチン名,実績時間\n"
         )
-        f.write("2025-10-19,task1,タスク1,prj1,プロジェクトA,mode1,Focus,01:00:00\n")
-        f.write("2025-10-19,task2,タスク2,prj1,プロジェクトA,mode1,Focus,00:30:00\n")
-        f.write("2025-10-19,task3,タスク3,prj2,プロジェクトB,mode2,Living,00:45:00\n")
+        f.write("2025-10-19,task1,タスク1,prj1,プロジェクトA,mode1,Focus,rtn1,ルーチン1,01:00:00\n")
+        f.write("2025-10-19,task2,タスク2,prj1,プロジェクトA,mode1,Focus,,,00:30:00\n")
+        f.write(
+            "2025-10-19,task3,タスク3,prj2,プロジェクトB,mode2,Living,rtn2,ルーチン2,00:45:00\n"
+        )
         csv_path = Path(f.name)
 
     yield csv_path
@@ -63,9 +65,10 @@ class TestReportGenerator:
             enable_ai=False,
         )
 
-        assert len(generator.analyzers) == 2
+        assert len(generator.analyzers) == 3
         assert any(a.name == "project" for a in generator.analyzers)
         assert any(a.name == "mode" for a in generator.analyzers)
+        assert any(a.name == "routine" for a in generator.analyzers)
 
     def test_グラフディレクトリが作成される(self, sample_csv_file, temp_output_dir):
         """グラフ保存用ディレクトリが作成されることを確認."""

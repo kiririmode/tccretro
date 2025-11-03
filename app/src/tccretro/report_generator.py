@@ -10,6 +10,7 @@ from tccretro.ai_feedback import AIFeedbackGenerator
 from tccretro.analyzer.base import AnalysisResult, IAnalyzer
 from tccretro.analyzer.mode_analyzer import ModeAnalyzer
 from tccretro.analyzer.project_analyzer import ProjectAnalyzer
+from tccretro.analyzer.routine_analyzer import RoutineAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ class ReportGenerator:
         self.analyzers = [
             ProjectAnalyzer(self.data, self.output_dir),
             ModeAnalyzer(self.data, self.output_dir),
+            RoutineAnalyzer(self.data, self.output_dir),
             # 将来的に他のアナライザーをここに追加
         ]
         logger.info("登録されたアナライザー: %d 個", len(self.analyzers))
@@ -65,6 +67,7 @@ class ReportGenerator:
             analyzer_label = {
                 "project": "プロジェクト別分析",
                 "mode": "モード別分析",
+                "routine": "ルーチン別分析",
             }.get(analyzer.name, f"'{analyzer.name}' 分析")
 
             print(f"  → {analyzer_label}を実行中...")
@@ -80,8 +83,9 @@ class ReportGenerator:
                 ai_generator = AIFeedbackGenerator(model_id=self.model_id)
                 project_result = next(r for r in analysis_results if "プロジェクト" in r.title)
                 mode_result = next(r for r in analysis_results if "モード" in r.title)
+                routine_result = next(r for r in analysis_results if "ルーチン" in r.title)
                 ai_feedback = ai_generator.generate_feedback(
-                    project_result.summary, mode_result.summary
+                    project_result.summary, mode_result.summary, routine_result.summary
                 )
             except Exception as e:
                 logger.warning("AI分析をスキップします: %s", e)
