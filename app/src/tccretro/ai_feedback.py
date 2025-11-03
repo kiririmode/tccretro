@@ -3,9 +3,12 @@
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 import boto3
+import yaml
+from botocore.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +16,20 @@ logger = logging.getLogger(__name__)
 class AIFeedbackGenerator:
     """Amazon Bedrock (Claude) を使用してデータ分析とフィードバックを生成するクラス."""
 
-    def __init__(self, model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"):
+    def __init__(
+        self,
+        model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        project_definitions_path: str | None = None,
+    ):
         """AIFeedbackGeneratorを初期化する.
 
         Args:
             model_id: 使用するBedrockのモデルIDまたは推論プロファイルID
+            project_definitions_path: プロジェクト定義YAMLファイルのパス（省略時はデフォルトパス）
         """
         self.model_id = model_id
         self.bedrock_client = self._create_bedrock_client()
+        self.project_definitions = self._load_project_definitions(project_definitions_path)
 
     def _create_bedrock_client(self) -> Any:
         """Bedrock Runtimeクライアントを作成する.
@@ -37,15 +46,78 @@ class AIFeedbackGenerator:
             # AWS認証情報を環境変数から取得
             aws_region = os.getenv("AWS_REGION", "us-east-1")
 
+            # タイムアウト設定を追加（Claude Sonnet 4.5は応答に時間がかかるため）
+            config = Config(
+                read_timeout=180,  # 読み取りタイムアウト: 3分
+                connect_timeout=60,  # 接続タイムアウト: 1分
+            )
+
             client = boto3.client(
                 service_name="bedrock-runtime",
                 region_name=aws_region,
+                config=config,
             )
             logger.info("Bedrock Runtimeクライアントを初期化しました (region: %s)", aws_region)
             return client
         except Exception as e:
             logger.error("Bedrock Runtimeクライアントの初期化に失敗しました: %s", e)
             raise
+
+    def _load_project_definitions(self, definitions_path: str | None = None) -> dict[str, Any]:
+        """プロジェクト定義YAMLファイルを読み込む.
+
+        Args:
+            definitions_path: YAMLファイルのパス（省略時はデフォルトパス）
+
+        Returns:
+            dict[str, Any]: プロジェクト定義の辞書
+
+        Raises:
+            FileNotFoundError: YAMLファイルが見つからない場合
+            yaml.YAMLError: YAMLのパースエラー
+        """
+        if definitions_path is None:
+            # デフォルトパス: このファイルの親ディレクトリの親の親/project_definitions.yaml
+            current_file = Path(__file__)
+            definitions_path = str(current_file.parent.parent.parent / "project_definitions.yaml")
+
+        path = Path(definitions_path)
+
+        if not path.exists():
+            logger.warning(
+                "プロジェクト定義ファイルが見つかりません: %s。空の定義を使用します。",
+                definitions_path,
+            )
+            return {}
+
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+                logger.info("プロジェクト定義を読み込みました: %s", definitions_path)
+                return data.get("projects", {}) if data else {}
+        except yaml.YAMLError as e:
+            logger.error("プロジェクト定義の読み込みに失敗しました: %s", e)
+            return {}
+
+    def _format_project_definitions(self) -> str:
+        """プロジェクト定義をプロンプト用にフォーマットする.
+
+        Returns:
+            str: フォーマットされたプロジェクト定義文字列
+        """
+        if not self.project_definitions:
+            return ""
+
+        lines = ["# プロジェクト定義", "", "以下は各プロジェクトの定義です：", ""]
+
+        for project_name, project_info in self.project_definitions.items():
+            description = project_info.get("description", "").strip()
+            if description:
+                lines.append(f"## {project_name}")
+                lines.append(description)
+                lines.append("")
+
+        return "\n".join(lines)
 
     def generate_feedback(
         self,
@@ -113,8 +185,13 @@ class AIFeedbackGenerator:
         mode_data = json.dumps(mode_summary, ensure_ascii=False, indent=2)
         routine_data = json.dumps(routine_summary, ensure_ascii=False, indent=2)
 
+        # プロジェクト定義セクションを取得
+        project_definitions_section = self._format_project_definitions()
+
         prompt = f"""あなたは時間管理とライフスタイル改善のエキスパートです。
 以下のTaskChute Cloudのデータ分析結果をもとに、より良い暮らしのための時間の使い方についての詳細なフィードバックを提供してください。
+
+{project_definitions_section}
 
 # プロジェクト別分析データ
 ```json
@@ -131,7 +208,7 @@ class AIFeedbackGenerator:
 {routine_data}
 ```
 
-以下の観点から分析とフィードバックを提供してください:
+以下の観点から分析とフィードバックを提供してください：
 
 ## 1. 現状分析
 - 時間の使い方の傾向と特徴

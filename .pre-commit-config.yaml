@@ -20,6 +20,7 @@ repos:
         additional_dependencies:
           - boto3-stubs
           - types-python-dateutil
+          - types-pyyaml
         args: [--ignore-missing-imports]
 
   # Dockerfileのリント
